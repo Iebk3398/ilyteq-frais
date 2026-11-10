@@ -115,10 +115,15 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .bar.thin .bar-fill{background:var(--brand-2)}
 .gain{color:var(--ok);font-weight:700;margin:0 0 12px}
 .gain:empty{display:none}
-.ck{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.ck{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
 .ck:last-child{border:0}
 .ck .q{font-size:14px;font-weight:600}
 .ck .w{font-size:12.5px;color:var(--muted);margin-top:2px}
-.ck .g{font-size:12.5px;font-weight:700;color:var(--ok);white-space:nowrap}
+.ck .g:empty{display:none}.ck .g{font-size:12.5px;font-weight:700;color:var(--ok);margin-top:4px}
 .tag{font-size:10.5px;padding:2px 7px;border-radius:10px;background:var(--bg);color:var(--muted);margin-left:6px;vertical-align:middle;font-weight:500}
 details.card summary{cursor:pointer;font-weight:700}
+.ckbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.ckb{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:18px;padding:8px 4px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.ckb.on.yes{background:var(--okbg);border-color:var(--ok);color:var(--ok);font-weight:700}
+.ckb.on.no{background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:700}
+.ckb.on.unknown{background:var(--warnbg);border-color:var(--warn);color:var(--warn);font-weight:700}

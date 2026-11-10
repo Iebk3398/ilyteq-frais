@@ -506,7 +506,8 @@ function showResult() {
   $("#rPct").textContent = p; const g = $("#rGauge"); g.style.setProperty("--p", Math.max(p, 2)); g.style.setProperty("--gc", `var(--${p >= 80 ? "ok" : p >= 50 ? "warn" : "bad"})`);
   const mustTodo = todo.filter((c) => c.level === "must");
   $("#rGain").innerHTML = (gain ? `Encore <strong class="pos">+ ${eur(gain)} / an</strong> à aller chercher sans impôt ou presque. ` : "") + (mustTodo.length ? `<strong class="neg">${mustTodo.length} point(s) de sécurité</strong> à régler d'abord.` : "Les bases sont en place 👍");
-  const item = (c) => { const s = a[c.id]; return `<div class="ck" data-ck="${c.id}"><div>${s === "yes" ? "✅" : s === "no" ? "❌" : "🤷"}</div><div><div class="q">${esc(c.q)}</div><div class="w">${esc(c.why)}</div></div><div class="g">${c.gain ? "+" + eur(c.gain) : ""}</div></div>`; };
+  const btn = (c, v, l) => `<button type="button" class="ckb ${a[c.id] === v || (!a[c.id] && v === "unknown") ? "on " + v : ""}" data-ck="${c.id}" data-v="${v}">${l}</button>`;
+  const item = (c) => { const s = a[c.id]; return `<div class="ck"><div>${s === "yes" ? "✅" : s === "no" ? "❌" : "🤷"}</div><div><div class="q">${esc(c.q)}</div><div class="w">${esc(c.why)}</div>${c.gain ? `<div class="g">+ ${eur(c.gain)} / an</div>` : ""}<div class="ckbs">${btn(c, "yes", "✓ Fait")}${btn(c, "no", "✗ Pas encore")}${btn(c, "unknown", "? Sais pas")}</div></div></div>`; };
   const block = (title, list, open = true) => list.length ? `<details class="card" ${open ? "open" : ""}><summary>${title} (${list.length})</summary>${list.map(item).join("")}</details>` : "";
   const byGain = (x, y) => (y.gain || 0) - (x.gain || 0);
   $("#rLists").innerHTML =
@@ -588,11 +589,16 @@ async function init() {
   $("#qResults").addEventListener("click", async () => { await saveChecklist(answers(), true); showResult(); });
   $("#rRedo").addEventListener("click", () => startQuiz(0));
   $("#rLists").addEventListener("click", async (ev) => {
-    const row = ev.target.closest("[data-ck]"); if (!row) return;
-    const id = row.dataset.ck, cur = answers()[id], next = { yes: "no", no: "unknown", unknown: "yes" }[cur || "unknown"];
-    const keep = $$("#rLists details").map((d) => d.open);
+    const b = ev.target.closest("button[data-ck]"); if (!b) return;
+    const id = b.dataset.ck, next = b.dataset.v, cur = answers()[id] || "unknown";
+    if (next === cur) return;
+    const titles = (el) => el.querySelector("summary").textContent.replace(/\s*\(\d+\)$/, "");
+    const keep = Object.fromEntries($$("#rLists details").map((d) => [titles(d), d.open]));
+    const y = window.scrollY;
     await saveChecklist({ ...answers(), [id]: next }, true); showResult();
-    $$("#rLists details").forEach((d, i) => { if (keep[i] !== undefined) d.open = keep[i]; });
+    $$("#rLists details").forEach((d) => { const k = titles(d); if (k in keep) d.open = keep[k]; });
+    window.scrollTo(0, y);
+    toast(next === "yes" ? "✅ Validé — rangé dans « Déjà en place »" : next === "no" ? "❌ Noté comme pas encore fait" : "🤷 Noté comme à vérifier");
   });
   renderAll(true);
   if (!state.checklist?.done && !state.entries.length) openStart();
