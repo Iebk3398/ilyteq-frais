@@ -1,7 +1,9 @@
 // Règles fiscales ILYTEQ — novembre 2026. À valider avec le comptable.
 // Modifier ce fichier suffit pour mettre à jour un taux ou un plafond.
 const RULES = {
-  version: "2026-11",
+  version: "2026-11b",
+  // Jours fériés belges (non facturés)
+  holidays: ["2026-11-01","2026-11-11","2026-12-25","2027-01-01","2027-03-29","2027-05-01","2027-05-06","2027-05-17","2027-07-21","2027-08-15","2027-11-01","2027-11-11","2027-12-25"],
   isocRate: 0.20,          // ISOC taux PME
   exitTaxRate: 0.18,       // réserve de liquidation / VVPRbis (Arizona)
   dividendRate: 0.30,      // dividende classique
@@ -45,6 +47,7 @@ const CATEGORIES = [
   { id: "voiture", type: "expense", label: "Voiture électrique (leasing)", icon: "⚡", deduct: 1, vat: 0.5, hint: "100 % si commandée au plus tard le 31/12/2026." },
   { id: "logement", type: "expense", label: "Frais réels du logement (prorata)", icon: "🏠", deduct: 1, vat: 0, home: true, hint: "Incompatible avec le forfait bureau le même mois." },
   { id: "pension", type: "expense", label: "Pension complémentaire (EIP/PLCI)", icon: "🌱", deduct: 1, vat: 0, hint: "Plafond calculé par le comptable (règle des 80 %)." },
+  { id: "salaire", type: "expense", label: "Salaire dirigeant versé (net)", icon: "👤", deduct: 0, vat: 0, salary: true, hint: "Le net viré sur ton compte privé (fiche Liantis). Sert au suivi de trésorerie, pas compté dans les frais." },
   { id: "divers", type: "expense", label: "Autre frais pro", icon: "📎", deduct: 1, vat: 1, hint: "Fournitures, poste…" },
   { id: "prive", type: "expense", label: "Dépense privée (non déductible)", icon: "⛔", deduct: 0, vat: 0, private: true, hint: "Ne passe jamais en société." },
 ];

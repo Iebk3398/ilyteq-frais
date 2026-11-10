@@ -54,7 +54,25 @@
     </div>
 
     <div class="card">
-      <h3>Projection sur 12 mois</h3>
+      <h3>Plan du comptable vs ma projection (12 mois)</h3>
+      <table class="proj plan" id="planTable"></table>
+      <p class="small" id="planDiff"></p>
+    </div>
+
+    <div class="card">
+      <h3>Trésorerie ILYTEQ</h3>
+      <table class="proj" id="cash"></table>
+      <p class="muted small" id="cashHint"></p>
+    </div>
+
+    <div class="card">
+      <h3>Où j'en suis depuis le démarrage</h3>
+      <table class="proj" id="toDate"></table>
+      <p class="muted small">Les factures sont mensuelles et payées à 30 jours : un « reste à facturer » d'un mois est normal.</p>
+    </div>
+
+    <div class="card">
+      <h3>Projection détaillée sur 12 mois</h3>
       <p class="muted small" id="projHint"></p>
       <table class="proj">
         <tr><td>CA HTVA</td><td id="pCA"></td></tr>
@@ -164,8 +182,20 @@
       <label>Tarif journalier HTVA<input type="number" id="sTjm" inputmode="decimal"></label>
       <label>Jours facturés par an (prévision)<input type="number" id="sDays" inputmode="numeric"></label>
       <label>Salaire brut mensuel dirigeant<input type="number" id="sSalary" inputmode="decimal"></label>
-      <label>Date de création<input type="date" id="sStart"></label>
-      <button class="btn" id="sSave">Enregistrer</button>
+      <label>Début de la facturation<input type="date" id="sStart"></label>
+      <label>Capital de départ (trésorerie)<input type="number" id="sCapital" inputmode="decimal"></label>
+    </div>
+    <div class="card">
+      <h3>Plan financier du comptable (année 1)</h3>
+      <div class="grid2">
+        <label>CA HTVA<input type="number" id="pCaIn" inputmode="decimal"></label>
+        <label>Jours prévus<input type="number" id="pDaysIn" inputmode="numeric"></label>
+        <label>Salaire + cotisations<input type="number" id="pSalIn" inputmode="decimal"></label>
+        <label>Frais<input type="number" id="pFraisIn" inputmode="decimal"></label>
+        <label>Impôt des sociétés<input type="number" id="pIsocIn" inputmode="decimal"></label>
+        <label>Reste dans ILYTEQ<input type="number" id="pRestIn" inputmode="decimal"></label>
+      </div>
+      <button class="btn" id="sSave" style="margin-top:14px">Enregistrer</button>
     </div>
     <div class="card">
       <h3>Sauvegarde</h3>

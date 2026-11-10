@@ -11,7 +11,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 const monthKey = (d) => String(d).slice(0, 7);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-const DEFAULT_SETTINGS = { tjm: 485, days: 220, salary: 2500, start: "2026-10-15" };
+// Plan financier du comptable (année 1) + démarrage de la facturation le 26/10/2026
+const DEFAULT_PLAN = { ca: 128040, salary: 36000, frais: 7140, benefit: 84702, isoc: 16940, rest: 67761, days: 264 };
+const DEFAULT_SETTINGS = { tjm: 485, days: 220, salary: 2500, start: "2026-10-26", capital: 2000, plan: DEFAULT_PLAN };
+// Catégories déjà couvertes par les frais fixes du plan (comptable, Liantis, assurance, GSM)
+const PLAN_FIXED = ["gestion", "assurance", "telecom"];
 
 /* ---------- Stockage ---------- */
 const DB = {
@@ -50,6 +54,8 @@ async function load() {
   state.entries = await DB.all("entries");
   const meta = Object.fromEntries((await DB.all("meta")).map((m) => [m.key, m.value]));
   state.settings = { ...DEFAULT_SETTINGS, ...(meta.settings || {}) };
+  state.settings.plan = { ...DEFAULT_PLAN, ...(state.settings.plan || {}) };
+  if (state.settings.start === "2026-10-15") state.settings.start = "2026-10-26";
   state.months = meta.months || {};
   try { const p = localStorage.getItem("period"); if (p) $("#period").value = p; } catch (e) {}
 }
@@ -62,6 +68,7 @@ function compute(e) {
   if (c.km) { ht = (+e.km || 0) * RULES.kmRate; vat = 0; ttc = ht; }
   else { ttc = +e.ttc || 0; const r = +e.vatRate || 0; ht = ttc / (1 + r); vat = ttc - ht; }
   if (e.type === "income") return { ht, vat, ttc, deductible: 0, vatRec: 0, vatDue: vat };
+  if (c.salary) return { ht: ttc, vat: 0, ttc, deductible: 0, vatRec: 0, vatDue: 0, salary: true };
   let vatShare = c.vat || 0;
   if (c.giftVat && ht >= 50) vatShare = 0;
   if (!e.invoice && !c.km) vatShare = 0;           // pas de facture ILYTEQ = pas de TVA récupérable
@@ -91,10 +98,12 @@ function monthPerks(m) {
 }
 
 function totals(entries) {
-  const t = { ca: 0, vatDue: 0, vatRec: 0, frais: 0, fraisHT: 0, perks: 0, mealCost: 0, byCat: {} };
+  const t = { ca: 0, inTTC: 0, outTTC: 0, salPaid: 0, vatDue: 0, vatRec: 0, frais: 0, fraisHT: 0, perks: 0, mealCost: 0, byCat: {} };
   for (const e of entries) {
     const v = compute(e);
-    if (e.type === "income") { t.ca += v.ht; t.vatDue += v.vatDue; continue; }
+    if (e.type === "income") { t.ca += v.ht; t.vatDue += v.vatDue; t.inTTC += v.ttc; continue; }
+    if (v.salary) { t.salPaid += v.ttc; continue; }
+    t.outTTC += v.ttc;
     t.fraisHT += v.ht; t.frais += v.deductible; t.vatRec += v.vatRec;
     t.byCat[e.cat] = (t.byCat[e.cat] || 0) + v.ht;
   }
@@ -107,7 +116,7 @@ function totals(entries) {
 /* ---------- Contrôles fiscaux ---------- */
 const PRIV_RE = new RegExp(RULES.privateKeywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
 function entryFlags(e) {
-  if (e.type === "income") return [];
+  if (e.type === "income" || CAT[e.cat]?.salary) return [];
   const c = CAT[e.cat] || {}, v = compute(e), f = [];
   const day = new Date(e.date + "T12:00").getDay();
   if (c.private) f.push({ k: "private", lvl: "bad", t: "Dépense privée" });
@@ -214,14 +223,17 @@ function renderHome() {
   // projection 12 mois
   const ca12 = s.tjm * s.days, sal12 = s.salary * 12 * RULES.employerCostFactor;
   const months = Math.max(1, monthsSince(s.start));
-  const exp = state.entries.filter((e) => e.type === "expense").map(compute);
-  // frais courants extrapolés + annuités d'amortissement (sans les extrapoler)
-  const frais12 = exp.filter((v) => !v.amort).reduce((x, v) => x + v.deductible, 0) / months * 12 + exp.filter((v) => v.amort).reduce((x, v) => x + v.deductible, 0);
+  const expE = state.entries.filter((e) => e.type === "expense" && !PLAN_FIXED.includes(e.cat) && !CAT[e.cat]?.salary);
+  const exp = expE.map(compute);
+  // frais fixes du plan + autres frais extrapolés + annuités d'amortissement (sans les extrapoler)
+  const frais12 = s.plan.frais + exp.filter((v) => !v.amort).reduce((x, v) => x + v.deductible, 0) / months * 12 + exp.filter((v) => v.amort).reduce((x, v) => x + v.deductible, 0);
   const cur = monthPerks(today().slice(0, 7)), mo = state.months[today().slice(0, 7)] || {};
   const perks12 = cur.forf * 12 + (mo.meal ? RULES.mealVoucherMax * s.days : 0);
   const perksCost12 = cur.forf * 12 + (mo.meal ? 2 * s.days : 0);
   const b12 = ca12 - sal12 - frais12 - perksCost12, isoc12 = Math.max(0, b12) * RULES.isocRate, rest12 = b12 - isoc12;
-  $("#projHint").textContent = `${s.days} jours × ${eur(s.tjm)}, salaire ${eur(s.salary)} brut/mois, frais au rythme moyen depuis la création.`;
+  $("#projHint").textContent = `${s.days} jours × ${eur(s.tjm)}, salaire ${eur(s.salary)} brut/mois, frais fixes du plan (${eur(s.plan.frais)}) + tes autres frais au rythme actuel.`;
+  renderPlan({ ca12, sal12, frais12: frais12 + perksCost12, isoc12, rest12 });
+  renderCash();
   $("#pCA").textContent = eur(ca12); $("#pSal").textContent = "− " + eur(sal12); $("#pFrais").textContent = "− " + eur(frais12 + perksCost12);
   $("#pIsoc").textContent = "− " + eur(isoc12); $("#pRest").textContent = eur(rest12);
   $("#pExit").textContent = eur(Math.max(0, rest12) * (1 - RULES.exitTaxRate)); $("#pPerks").textContent = eur(perks12);
@@ -229,14 +241,55 @@ function renderHome() {
   const rows = Object.entries(t.byCat).sort((a, b) => b[1] - a[1]);
   $("#byCat").innerHTML = rows.length ? rows.map(([k, v]) => `<div class="r"><span>${k === "__perks" ? "🏡 Forfaits & chèques-repas" : esc(CAT[k].icon + " " + CAT[k].label)}</span><strong>${eur(v)}</strong></div>`).join("") : `<p class="muted small">Aucune dépense sur la période. Appuie sur ＋ pour commencer.</p>`;
 }
+function renderPlan(pr) {
+  const s = state.settings, P = s.plan;
+  const row = (l, a, b, neg) => `<tr><td>${l}</td><td>${(neg ? "− " : "") + eur(a)}</td><td>${(neg ? "− " : "") + eur(b)}</td></tr>`;
+  $("#planTable").innerHTML = `<tr class="head"><td></td><td>Comptable</td><td>Ma projection</td></tr>` +
+    `<tr><td>Jours facturés</td><td>${P.days}</td><td>${s.days}</td></tr>` +
+    row("CA HTVA", P.ca, pr.ca12) + row("Salaire + cotisations", P.salary, pr.sal12, 1) + row("Frais", P.frais, pr.frais12, 1) +
+    row("Impôt des sociétés", P.isoc, pr.isoc12, 1) + `<tr class="strong"><td>Reste dans ILYTEQ</td><td>${eur(P.rest)}</td><td>${eur(pr.rest12)}</td></tr>`;
+  const diff = pr.rest12 - P.rest;
+  $("#planDiff").innerHTML = `Écart avec le plan : <strong class="${diff < 0 ? "neg" : "pos"}">${diff >= 0 ? "+" : "−"} ${eur(Math.abs(diff))}</strong>` + (s.days < P.days ? ` · le plan compte ${P.days} jours, sans congés ni jours fériés.` : "");
+  // à date depuis le démarrage
+  const wd = workDays(s.start, today()), expected = wd * s.tjm;
+  const invoiced = state.entries.filter((e) => e.type === "income").reduce((x, e) => x + compute(e).ht, 0);
+  const planToDate = P.ca / 12 * monthsSince(s.start);
+  $("#toDate").innerHTML = `<tr><td>Jours ouvrables depuis le ${new Date(s.start + "T12:00").toLocaleDateString("fr-BE")}</td><td>${wd}</td></tr>
+    <tr><td>CA prestable (${wd} × ${eur(s.tjm)})</td><td>${eur(expected)}</td></tr>
+    <tr><td>CA du plan à date</td><td>${eur(planToDate)}</td></tr>
+    <tr class="strong"><td>Déjà facturé (HTVA)</td><td>${eur(invoiced)}</td></tr>
+    <tr><td>Reste à facturer</td><td>${eur(Math.max(0, expected - invoiced))}</td></tr>`;
+}
+function renderCash() {
+  const s = state.settings, t = totals(state.entries);
+  const perks = Object.keys(state.months).filter((m) => m <= today().slice(0, 7)).reduce((x, m) => { const p = monthPerks(m); return x + p.forf + (state.months[m].meal ? (RULES.mealVoucherMax) * (+state.months[m].workDays || 0) : 0); }, 0);
+  const bank = (+s.capital || 0) + t.inTTC - t.outTTC - t.salPaid - perks, vat = t.vatDue - t.vatRec;
+  const sals = state.entries.filter((e) => CAT[e.cat]?.salary).length;
+  $("#cash").innerHTML = `<tr><td>Capital de départ</td><td>${eur(+s.capital || 0)}</td></tr>
+    <tr><td>+ Factures encodées (TTC)</td><td>${eur(t.inTTC)}</td></tr>
+    <tr><td>− Dépenses (TTC)</td><td>− ${eur(t.outTTC)}</td></tr>
+    <tr><td>− Salaires nets versés (${sals})</td><td>− ${eur(t.salPaid)}</td></tr>
+    ${perks ? `<tr><td>− Forfaits & chèques-repas</td><td>− ${eur(perks)}</td></tr>` : ""}
+    <tr class="strong"><td>Banque estimée</td><td>${eur(bank)}</td></tr>
+    <tr><td>dont TVA à reverser</td><td>− ${eur(Math.max(0, vat))}</td></tr>
+    <tr class="strong"><td>Vraiment disponible</td><td>${eur(bank - Math.max(0, vat))}</td></tr>`;
+  $("#cashHint").textContent = sals ? "" : "Encode ton premier salaire (catégorie « Salaire dirigeant versé ») pour que la banque soit juste.";
+}
+function monthIsoDays(m) { const [y, mo] = m.split("-").map(Number); const last = new Date(y, mo, 0).getDate(); return workDays(m + "-01", m + "-" + String(last).padStart(2, "0")); }
 function monthsIn(ents) {
   const p = $("#period").value;
   if (p === "month") return 1;
-  if (p === "12m") return Math.min(12, Math.max(1, monthsSince(state.settings.start)));
-  if (p === "year") { const y = new Date().getFullYear(), st = new Date(state.settings.start); const from = st.getFullYear() === y ? st.getMonth() : 0; return new Date().getMonth() - from + 1; }
-  return Math.max(1, monthsSince(state.settings.start));
+  if (p === "12m") return Math.min(12, monthsSince(state.settings.start));
+  if (p === "year") { const y = new Date().getFullYear(), jan = y + "-01-01"; return monthsSince(state.settings.start > jan ? state.settings.start : jan); }
+  return monthsSince(state.settings.start);
 }
-function monthsSince(d) { const a = new Date(d), b = new Date(); return (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() + 1; }
+function monthsSince(d) { return Math.max(0.5, (new Date(today()) - new Date(d)) / 864e5 / 30.44); }
+// jours ouvrables (hors week-ends et jours fériés) entre deux dates incluses
+function workDays(from, to) {
+  let n = 0; const d = new Date(from + "T12:00"), end = new Date(to + "T12:00");
+  while (d <= end) { const w = d.getDay(), k = d.toISOString().slice(0, 10); if (w && w !== 6 && !RULES.holidays.includes(k)) n++; d.setDate(d.getDate() + 1); }
+  return n;
+}
 
 function renderList() {
   const q = ($("#search").value || "").toLowerCase().trim(), f = state.listFilter;
@@ -273,7 +326,7 @@ function renderForfaits() {
   const m = $("#fMonth").value || today().slice(0, 7), mo = state.months[m] || {};
   $("#fMonth").value = m;
   $("#fTeleDays").value = mo.teleDays ?? "";
-  $("#fWorkDays").value = mo.workDays ?? "";
+  $("#fWorkDays").value = mo.workDays ?? ""; $("#fWorkDays").placeholder = "≈ " + monthIsoDays(m) + " jours ouvrables";
   $("#fMeal").checked = !!mo.meal;
   $("#forfaitList").innerHTML = RULES.forfaits.map((f) => `<label class="check"><input type="checkbox" data-forf="${f.id}" ${(mo.forfaits || []).includes(f.id) ? "checked" : ""}> ${f.label} — ${eur(f.monthly)}/mois</label>`).join("");
 }
@@ -301,9 +354,10 @@ function onCat() {
   $("#kmBox").hidden = !c.km; $("#amountBox").hidden = !!c.km;
   $("#clientBox").hidden = !(c.id === "resto" || c.id === "cadeau" || c.type === "income");
   $("#clientBox").firstChild.textContent = c.type === "income" ? "Client" : "Client / bénéficiaire";
-  $("#invBox").hidden = c.km || c.type === "income" || c.private;
-  $("#paidBox").hidden = c.type === "income";
-  $("#purposeBox").hidden = c.type === "income";
+  $("#invBox").hidden = c.km || c.type === "income" || c.private || c.salary;
+  $("#paidBox").hidden = c.type === "income" || c.salary;
+  $("#purposeBox").hidden = c.type === "income" || c.salary;
+  if (c.salary) { $("#fVatRate").value = "0"; if (!$("#fLabel").value) $("#fLabel").value = "Salaire " + new Date(new Date().setMonth(new Date().getMonth() - 1)).toLocaleDateString("fr-BE", { month: "long" }); }
   if (c.vat === 0 && !c.km && c.type === "expense" && c.id !== "assurance") $("#fVatRate").value = "0";
   else if (!$("#fVatRate").dataset.touched) $("#fVatRate").value = c.id === "assurance" || c.id === "pension" ? "0" : "0.21";
   live();
@@ -322,7 +376,7 @@ function live() {
   const v = compute(e);
   $("#fCalc").innerHTML = e.type === "income"
     ? `HTVA ${eur(v.ht)} · TVA à reverser ${eur(v.vat)}`
-    : `HTVA ${eur(v.ht)} · déductible ${eur(v.deductible)} · TVA récupérable ${eur(v.vatRec)}`;
+    : v.salary ? `Net versé ${eur(v.ttc)} · coût société suivi via le salaire brut des réglages` : `HTVA ${eur(v.ht)} · déductible ${eur(v.deductible)} · TVA récupérable ${eur(v.vatRec)}`;
   const fl = e.date ? entryFlags({ ...e, photo: e.photo || "x" }).filter((f) => f.lvl !== "info") : [];
   $("#fWarn").innerHTML = fl.map((f) => `<div class="alert ${f.lvl}"><b>${f.t}</b>${flagHelp(f.k)}</div>`).join("");
 }
@@ -406,7 +460,7 @@ async function importJson(ev) {
     if (d.app !== "ilyteq-frais" || !Array.isArray(d.entries)) throw new Error("format");
     if (!confirm(`Restaurer ${d.entries.length} entrée(s) du ${String(d.exported).slice(0, 10)} ? Les données actuelles seront remplacées.`)) return;
     await DB.clear("entries"); for (const e of d.entries) await DB.put("entries", e);
-    state.entries = d.entries; state.settings = { ...DEFAULT_SETTINGS, ...d.settings }; state.months = d.months || {};
+    state.entries = d.entries; state.settings = { ...DEFAULT_SETTINGS, ...d.settings }; state.settings.plan = { ...DEFAULT_PLAN, ...(state.settings.plan || {}) }; state.months = d.months || {};
     await saveMeta(); fillSettings(); renderAll(true); toast("Sauvegarde restaurée ✓");
   } catch (e) { toast("Fichier non reconnu."); }
 }
@@ -416,6 +470,7 @@ function fillSettings() {
   const s = state.settings;
   $("#sTjm").value = s.tjm; $("#sDays").value = s.days; $("#sSalary").value = s.salary; $("#sStart").value = s.start;
   $("#rulesVersion").textContent = RULES.version;
+  $("#sCapital").value = s.capital ?? 2000; const P = s.plan; $("#pCaIn").value = P.ca; $("#pSalIn").value = P.salary; $("#pFraisIn").value = P.frais; $("#pIsocIn").value = P.isoc; $("#pRestIn").value = P.rest; $("#pDaysIn").value = P.days;
 }
 
 /* ---------- Navigation ---------- */
@@ -463,7 +518,8 @@ async function init() {
   $("#fMonth").addEventListener("change", renderForfaits);
   ["#forfaitList", "#fMeal", "#fTeleDays", "#fWorkDays"].forEach((s) => $(s).addEventListener("change", saveMonth));
   $("#sSave").addEventListener("click", async () => {
-    state.settings = { tjm: +$("#sTjm").value || DEFAULT_SETTINGS.tjm, days: +$("#sDays").value || DEFAULT_SETTINGS.days, salary: +$("#sSalary").value || 0, start: $("#sStart").value || DEFAULT_SETTINGS.start };
+    state.settings = { tjm: +$("#sTjm").value || DEFAULT_SETTINGS.tjm, days: +$("#sDays").value || DEFAULT_SETTINGS.days, salary: +$("#sSalary").value || 0, start: $("#sStart").value || DEFAULT_SETTINGS.start, capital: +$("#sCapital").value || 0,
+      plan: { ca: +$("#pCaIn").value || 0, salary: +$("#pSalIn").value || 0, frais: +$("#pFraisIn").value || 0, isoc: +$("#pIsocIn").value || 0, rest: +$("#pRestIn").value || 0, days: +$("#pDaysIn").value || 0, benefit: DEFAULT_PLAN.benefit } };
     await saveMeta(); renderAll(true); toast("Réglages enregistrés ✓");
   });
   $("#exJson").addEventListener("click", exportJson);
