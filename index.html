@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ILYTEQ Frais</title>
+<meta name="theme-color" content="#1f3a5f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ILYTEQ Frais">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">IQ</span><div><strong>ILYTEQ Frais</strong><small id="periodLabel">—</small></div></div>
+  <select id="period" aria-label="Période">
+    <option value="all">Tout</option>
+    <option value="year">Cette année</option>
+    <option value="month">Ce mois</option>
+    <option value="12m">12 derniers mois</option>
+  </select>
+</header>
+
+<main>
+  <!-- ACCUEIL -->
+  <section id="tab-home" class="tab active">
+    <div class="risk card" id="riskCard">
+      <div class="risk-head">
+        <div>
+          <div class="eyebrow">Face au fisc</div>
+          <div class="risk-title" id="riskTitle">—</div>
+        </div>
+        <div class="gauge" id="gauge"><span id="riskScore">0</span><small>/100</small></div>
+      </div>
+      <p class="risk-text" id="riskText"></p>
+      <button class="link" data-goto="advice">Voir le détail →</button>
+    </div>
+
+    <div class="grid2">
+      <div class="card kpi"><div class="eyebrow">Chiffre d'affaires HTVA</div><div class="big" id="kCA">0 €</div></div>
+      <div class="card kpi"><div class="eyebrow">Frais déductibles</div><div class="big" id="kFrais">0 €</div><small id="kRatio"></small></div>
+      <div class="card kpi"><div class="eyebrow">Bénéfice estimé (après ISOC)</div><div class="big" id="kBenef">0 €</div><small id="kIsoc"></small></div>
+      <div class="card kpi"><div class="eyebrow">TVA à reverser (estim.)</div><div class="big" id="kTva">0 €</div><small id="kTvaRec"></small></div>
+    </div>
+
+    <div class="card">
+      <div class="row-between"><h3>Frais / chiffre d'affaires</h3><strong id="ratioPct">0 %</strong></div>
+      <div class="bar"><div class="bar-fill" id="ratioBar"></div><i style="left:66.6%"></i><i style="left:100%"></i></div>
+      <div class="bar-legend"><span>0 %</span><span>10 %</span><span>15 %</span></div>
+      <p class="muted small">Pour un consultant IT seul, les frais dépassent rarement 10 à 15 % du CA. Au-delà, prépare de solides justificatifs.</p>
+    </div>
+
+    <div class="card">
+      <h3>Projection sur 12 mois</h3>
+      <p class="muted small" id="projHint"></p>
+      <table class="proj">
+        <tr><td>CA HTVA</td><td id="pCA"></td></tr>
+        <tr><td>Salaire + cotisations</td><td id="pSal"></td></tr>
+        <tr><td>Frais (rythme actuel)</td><td id="pFrais"></td></tr>
+        <tr><td>Impôt des sociétés</td><td id="pIsoc"></td></tr>
+        <tr class="strong"><td>Reste dans ILYTEQ</td><td id="pRest"></td></tr>
+        <tr><td>Net privé si sorti à 18 % (après 3 ans)</td><td id="pExit"></td></tr>
+        <tr><td>+ forfaits & chèques-repas nets</td><td id="pPerks"></td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Par catégorie</h3>
+      <div id="byCat" class="bycat"></div>
+    </div>
+  </section>
+
+  <!-- SAISIE -->
+  <section id="tab-add" class="tab">
+    <form id="form" class="card" autocomplete="off">
+      <h3 id="formTitle">Nouvelle entrée</h3>
+      <div class="seg" role="tablist">
+        <button type="button" data-type="expense" class="on">Dépense</button>
+        <button type="button" data-type="income">Revenu</button>
+      </div>
+      <label>Catégorie<select id="fCat" required></select></label>
+      <p class="hint" id="fHint"></p>
+      <label>Date<input type="date" id="fDate" required></label>
+      <label>Libellé<input id="fLabel" placeholder="Ex. Écran Dell 27 pouces" required></label>
+
+      <div id="kmBox" hidden>
+        <div class="grid2">
+          <label>Kilomètres<input type="number" id="fKm" inputmode="decimal" min="0" step="0.1"></label>
+          <label>Montant<input id="fKmAmount" disabled></label>
+        </div>
+        <label>Destination<input id="fDest" placeholder="Ex. ProUnity, Malines"></label>
+      </div>
+
+      <div id="amountBox">
+        <div class="grid2">
+          <label>Montant TTC<input type="number" id="fTtc" inputmode="decimal" min="0" step="0.01"></label>
+          <label>TVA<select id="fVatRate"><option value="0.21">21 %</option><option value="0.12">12 %</option><option value="0.06">6 %</option><option value="0">0 % / pas de TVA</option></select></label>
+        </div>
+        <div class="calc" id="fCalc"></div>
+      </div>
+
+      <label id="clientBox" hidden>Client / bénéficiaire<input id="fClient" placeholder="Ex. Samir (CBS)"></label>
+      <label id="purposeBox">Motif professionnel<input id="fPurpose" placeholder="Pourquoi c'est pour ILYTEQ ?"></label>
+
+      <label class="check" id="invBox"><input type="checkbox" id="fInvoice" checked> Facture au nom d'ILYTEQ (BE1044.101.763)</label>
+      <label class="check" id="paidBox"><input type="checkbox" id="fPersonal"> Payé avec mon compte perso (à rembourser)</label>
+
+      <div class="photo">
+        <label class="btn ghost" for="fPhoto">📷 Justificatif</label>
+        <input type="file" id="fPhoto" accept="image/*" capture="environment" hidden>
+        <img id="fPreview" alt="" hidden>
+        <button type="button" class="link danger" id="fPhotoDel" hidden>Retirer la photo</button>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn">Enregistrer</button>
+        <button type="button" class="btn ghost" id="fCancel" hidden>Annuler</button>
+      </div>
+      <div class="warn-live" id="fWarn"></div>
+    </form>
+  </section>
+
+  <!-- HISTORIQUE -->
+  <section id="tab-list" class="tab">
+    <div class="card">
+      <input id="search" type="search" placeholder="Rechercher…">
+      <div class="seg small" id="listFilter">
+        <button type="button" data-f="all" class="on">Tout</button>
+        <button type="button" data-f="expense">Dépenses</button>
+        <button type="button" data-f="income">Revenus</button>
+        <button type="button" data-f="flag">⚠️ À corriger</button>
+      </div>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <!-- CONSEILS -->
+  <section id="tab-advice" class="tab">
+    <div class="card">
+      <h3>⚠️ Points qui attirent le fisc</h3>
+      <div id="alerts"></div>
+    </div>
+    <div class="card">
+      <h3>💡 Optimisations</h3>
+      <div id="opts"></div>
+    </div>
+    <div class="card">
+      <h3>Forfaits du mois (sans facture)</h3>
+      <p class="muted small">Coche ce qu'ILYTEQ te verse ce mois-ci via Liantis. Non imposé chez toi, déductible pour la société.</p>
+      <div class="grid2"><label>Mois<input type="month" id="fMonth"></label><label>Jours télétravaillés<input type="number" id="fTeleDays" min="0" max="31"></label></div>
+      <div id="forfaitList"></div>
+      <label class="check"><input type="checkbox" id="fMeal"> Chèques-repas actifs (8 €/jour travaillé)</label>
+      <label>Jours prestés ce mois<input type="number" id="fWorkDays" min="0" max="31"></label>
+    </div>
+  </section>
+
+  <!-- RÉGLAGES -->
+  <section id="tab-settings" class="tab">
+    <div class="card">
+      <h3>Ma société</h3>
+      <label>Tarif journalier HTVA<input type="number" id="sTjm" inputmode="decimal"></label>
+      <label>Jours facturés par an (prévision)<input type="number" id="sDays" inputmode="numeric"></label>
+      <label>Salaire brut mensuel dirigeant<input type="number" id="sSalary" inputmode="decimal"></label>
+      <label>Date de création<input type="date" id="sStart"></label>
+      <button class="btn" id="sSave">Enregistrer</button>
+    </div>
+    <div class="card">
+      <h3>Sauvegarde</h3>
+      <p class="muted small">Tes données restent uniquement sur ce téléphone. Fais une sauvegarde régulièrement.</p>
+      <div class="stack">
+        <button class="btn" id="exJson">💾 Sauvegarde complète (.json)</button>
+        <button class="btn ghost" id="exCsv">📊 Export pour le comptable (.csv)</button>
+        <label class="btn ghost" for="imJson">📂 Restaurer une sauvegarde</label>
+        <input type="file" id="imJson" accept="application/json,.json" hidden>
+        <a class="btn ghost hidden" id="shareFallback" download>⬇️ Télécharger le fichier</a>
+      </div>
+    </div>
+    <div class="card">
+      <h3>À propos</h3>
+      <p class="muted small">Règles fiscales version <span id="rulesVersion"></span>. Estimations, pas un conseil fiscal : fais valider par ton comptable.</p>
+      <button class="link danger" id="wipe">Tout effacer</button>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom">
+  <button data-tab="home" class="on"><span>🏠</span>Accueil</button>
+  <button data-tab="list"><span>📋</span>Historique</button>
+  <button data-tab="add" class="add"><span>＋</span></button>
+  <button data-tab="advice"><span>💡</span>Conseils</button>
+  <button data-tab="settings"><span>⚙️</span>Réglages</button>
+</nav>
+
+<div id="toast" class="toast"></div>
+<dialog id="photoDlg"><img id="photoBig" alt=""><button class="btn" id="photoClose">Fermer</button></dialog>
+
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
