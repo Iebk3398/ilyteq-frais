@@ -155,8 +155,40 @@
     <div id="list"></div>
   </section>
 
+  <!-- DÉMARRAGE -->
+  <section id="tab-start" class="tab">
+    <div id="startQuiz" class="card quiz" hidden>
+      <div class="row-between"><span class="eyebrow" id="qGroup"></span><span class="eyebrow" id="qCount"></span></div>
+      <div class="bar thin"><div class="bar-fill" id="qBar"></div></div>
+      <h2 id="qText"></h2>
+      <p class="muted" id="qWhy"></p>
+      <p class="gain" id="qGain"></p>
+      <div class="stack">
+        <button class="btn" data-ans="yes">✅ Oui, c'est fait</button>
+        <button class="btn ghost" data-ans="no">❌ Non, pas encore</button>
+        <button class="btn ghost" data-ans="unknown">🤷 Je ne sais pas</button>
+      </div>
+      <div class="row-between" style="margin-top:12px"><button class="link" id="qBack">← Précédent</button><button class="link" id="qResults">Voir le bilan →</button></div>
+    </div>
+    <div id="startResult" hidden>
+      <div class="card">
+        <div class="eyebrow">Ta mise en place freelance</div>
+        <div class="risk-head"><div class="big" id="rDone"></div><div class="gauge" id="rGauge"><span id="rPct"></span><small>%</small></div></div>
+        <p class="small" id="rGain"></p>
+        <button class="btn ghost" id="rRedo">Refaire le questionnaire</button>
+      </div>
+      <div id="rLists"></div>
+      <p class="muted small" style="padding:0 4px">Touche un point pour changer ta réponse. Estimations à valider avec ton comptable.</p>
+    </div>
+  </section>
+
   <!-- CONSEILS -->
   <section id="tab-advice" class="tab">
+    <div class="card">
+      <h3>🚀 Démarrage freelance</h3>
+      <p class="small" id="startSummary"></p>
+      <button class="btn" id="openStart">Ouvrir le bilan de démarrage</button>
+    </div>
     <div class="card">
       <h3>⚠️ Points qui attirent le fisc</h3>
       <div id="alerts"></div>
@@ -228,6 +260,7 @@
 <dialog id="photoDlg"><img id="photoBig" alt=""><button class="btn" id="photoClose">Fermer</button></dialog>
 
 <script src="rules.js"></script>
+<script src="checklist.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

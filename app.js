@@ -47,7 +47,7 @@ const DB = {
   clear: (store) => DB.tx(store, "readwrite", (s) => s.clear()),
 };
 
-const state = { entries: [], settings: { ...DEFAULT_SETTINGS }, months: {}, type: "expense", editId: null, photo: null, listFilter: "all" };
+const state = { checklist: null, qIndex: 0, entries: [], settings: { ...DEFAULT_SETTINGS }, months: {}, type: "expense", editId: null, photo: null, listFilter: "all" };
 
 async function load() {
   await DB.open();
@@ -57,6 +57,7 @@ async function load() {
   state.settings.plan = { ...DEFAULT_PLAN, ...(state.settings.plan || {}) };
   if (state.settings.start === "2026-10-15") state.settings.start = "2026-10-26";
   state.months = meta.months || {};
+  state.checklist = meta.checklist || null;
   try { const p = localStorage.getItem("period"); if (p) $("#period").value = p; } catch (e) {}
 }
 const saveMeta = () => Promise.all([DB.put("meta", { key: "settings", value: state.settings }), DB.put("meta", { key: "months", value: state.months })]);
@@ -473,19 +474,70 @@ function fillSettings() {
   $("#sCapital").value = s.capital ?? 2000; const P = s.plan; $("#pCaIn").value = P.ca; $("#pSalIn").value = P.salary; $("#pFraisIn").value = P.frais; $("#pIsocIn").value = P.isoc; $("#pRestIn").value = P.rest; $("#pDaysIn").value = P.days;
 }
 
+/* ---------- Questionnaire de démarrage ---------- */
+const answers = () => state.checklist?.answers || Object.fromEntries(CHECKLIST.filter((c) => c.def).map((c) => [c.id, c.def]));
+async function saveChecklist(a, done) { state.checklist = { answers: a, done: done ?? state.checklist?.done ?? false, at: new Date().toISOString() }; await DB.put("meta", { key: "checklist", value: state.checklist }); }
+function startQuiz(i = 0) { state.qIndex = i; $("#startResult").hidden = true; $("#startQuiz").hidden = false; showQ(); }
+function showQ() {
+  const c = CHECKLIST[state.qIndex], a = answers()[c.id];
+  $("#qGroup").textContent = c.group; $("#qCount").textContent = `${state.qIndex + 1} / ${CHECKLIST.length}`;
+  $("#qBar").style.width = ((state.qIndex) / CHECKLIST.length) * 100 + "%";
+  $("#qText").textContent = c.q; $("#qWhy").textContent = c.why;
+  $("#qGain").textContent = c.gain ? `Jusqu'à + ${eur(c.gain)} / an` : "";
+  $$("#startQuiz [data-ans]").forEach((b) => b.classList.toggle("ghost", b.dataset.ans !== (a || "")));
+  if (!a) $$("#startQuiz [data-ans]").forEach((b, i) => b.classList.toggle("ghost", i > 0));
+  $("#qBack").style.visibility = state.qIndex ? "visible" : "hidden";
+}
+async function answerQ(v) {
+  const a = { ...answers(), [CHECKLIST[state.qIndex].id]: v };
+  const last = state.qIndex >= CHECKLIST.length - 1;
+  await saveChecklist(a, last || state.checklist?.done);
+  if (last) showResult(); else { state.qIndex++; showQ(); }
+}
+function checklistStats() {
+  const a = answers(), done = CHECKLIST.filter((c) => a[c.id] === "yes");
+  const todo = CHECKLIST.filter((c) => a[c.id] !== "yes");
+  return { a, done, todo, gain: todo.reduce((x, c) => x + (c.gain || 0), 0) };
+}
+function showResult() {
+  $("#startQuiz").hidden = true; $("#startResult").hidden = false;
+  const { a, done, todo, gain } = checklistStats(), p = Math.round(done.length / CHECKLIST.length * 100);
+  $("#rDone").textContent = `${done.length} / ${CHECKLIST.length} en place`;
+  $("#rPct").textContent = p; const g = $("#rGauge"); g.style.setProperty("--p", Math.max(p, 2)); g.style.setProperty("--gc", `var(--${p >= 80 ? "ok" : p >= 50 ? "warn" : "bad"})`);
+  const mustTodo = todo.filter((c) => c.level === "must");
+  $("#rGain").innerHTML = (gain ? `Encore <strong class="pos">+ ${eur(gain)} / an</strong> à aller chercher sans impôt ou presque. ` : "") + (mustTodo.length ? `<strong class="neg">${mustTodo.length} point(s) de sécurité</strong> à régler d'abord.` : "Les bases sont en place 👍");
+  const item = (c) => { const s = a[c.id]; return `<div class="ck" data-ck="${c.id}"><div>${s === "yes" ? "✅" : s === "no" ? "❌" : "🤷"}</div><div><div class="q">${esc(c.q)}</div><div class="w">${esc(c.why)}</div></div><div class="g">${c.gain ? "+" + eur(c.gain) : ""}</div></div>`; };
+  const block = (title, list, open = true) => list.length ? `<details class="card" ${open ? "open" : ""}><summary>${title} (${list.length})</summary>${list.map(item).join("")}</details>` : "";
+  const byGain = (x, y) => (y.gain || 0) - (x.gain || 0);
+  $("#rLists").innerHTML =
+    block("🚨 À régler en priorité", mustTodo) +
+    block("💰 Optimisations à activer", todo.filter((c) => c.level === "opt").sort(byGain)) +
+    block("🗓️ À planifier avec le comptable", todo.filter((c) => c.level === "plan")) +
+    block("✅ Déjà en place", done, false);
+  renderStartSummary();
+}
+function renderStartSummary() {
+  if (!$("#startSummary")) return;
+  const { done, todo, gain } = checklistStats();
+  $("#startSummary").textContent = state.checklist?.done
+    ? `${done.length} / ${CHECKLIST.length} points en place · ${todo.filter((c) => c.level === "must").length} à régler · potentiel + ${eur(gain)} / an.`
+    : "Réponds à quelques questions pour voir tout ce qui est en place et tout ce que tu peux encore optimiser.";
+}
+function openStart() { go("start"); if (state.checklist?.done) showResult(); else startQuiz(Math.max(0, CHECKLIST.findIndex((c) => !state.checklist?.answers?.[c.id]))); }
+
 /* ---------- Navigation ---------- */
 let current = "home";
 function go(tab, keep) {
   current = tab;
   $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + tab));
-  $$(".bottom button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  $$(".bottom button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab || (tab === "start" && b.dataset.tab === "advice")));
   if (tab === "add" && !keep && !state.editId) resetForm();
   renderAll(); window.scrollTo(0, 0);
 }
 function renderAll(all) {
   if (all || current === "home") renderHome();
   if (all || current === "list") renderList();
-  if (all || current === "advice") renderAdvice();
+  if (all || current === "advice") { renderAdvice(); renderStartSummary(); }
 }
 let tt; function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 2600); }
 
@@ -530,7 +582,20 @@ async function init() {
     await DB.clear("entries"); await DB.clear("meta"); state.entries = []; state.months = {}; state.settings = { ...DEFAULT_SETTINGS };
     fillSettings(); renderAll(true); toast("Données effacées");
   });
+  $("#openStart").addEventListener("click", openStart);
+  $$("#startQuiz [data-ans]").forEach((b) => b.addEventListener("click", () => answerQ(b.dataset.ans)));
+  $("#qBack").addEventListener("click", () => { if (state.qIndex) { state.qIndex--; showQ(); } });
+  $("#qResults").addEventListener("click", async () => { await saveChecklist(answers(), true); showResult(); });
+  $("#rRedo").addEventListener("click", () => startQuiz(0));
+  $("#rLists").addEventListener("click", async (ev) => {
+    const row = ev.target.closest("[data-ck]"); if (!row) return;
+    const id = row.dataset.ck, cur = answers()[id], next = { yes: "no", no: "unknown", unknown: "yes" }[cur || "unknown"];
+    const keep = $$("#rLists details").map((d) => d.open);
+    await saveChecklist({ ...answers(), [id]: next }, true); showResult();
+    $$("#rLists details").forEach((d, i) => { if (keep[i] !== undefined) d.open = keep[i]; });
+  });
   renderAll(true);
+  if (!state.checklist?.done && !state.entries.length) openStart();
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 init().catch((e) => { document.body.insertAdjacentHTML("afterbegin", `<p style="padding:16px;color:#c0392b">Erreur au démarrage : ${esc(e.message)}</p>`); });

@@ -56,6 +56,15 @@ Chèques-repas : 8 €/jour travaillé max à charge de la société.
 - Sortie via réserve de liquidation / VVPRbis : ~18 % d'impôt total → net privé.
 - TVA due ≈ TVA facturée − TVA récupérable.
 
+### Questionnaire de démarrage
+
+31 questions oui / non / je ne sais pas (`checklist.js`), en 5 blocs : les bases, argent en poche sans impôt, payer via ILYTEQ, préparer l'avenir, ne pas se faire surprendre.
+Le bilan classe ce qui manque : sécurité d'abord, puis optimisations triées par gain annuel, puis ce qui est à planifier avec le comptable.
+
+### Plan du comptable
+
+L'accueil compare le plan financier (année 1 : 128 040 € de CA, 36 000 € de salaire + cotisations, 7 140 € de frais, 67 761 € de reste) à la projection réelle, suit le CA prestable depuis le 26/10/2026 et estime la trésorerie à partir du capital de départ (2 000 €).
+
 ## 3. Architecture technique
 
 - **PWA** (Progressive Web App) en HTML/CSS/JavaScript, **sans framework ni build** : un dossier statique qu'on pousse sur GitHub Pages.
@@ -70,6 +79,7 @@ ilyteq-frais/
 ├── index.html        écrans et navigation
 ├── styles.css        thème clair / sombre, mobile d'abord
 ├── rules.js          catégories, plafonds, règles fiscales (facile à mettre à jour)
+├── checklist.js      questionnaire de démarrage
 ├── app.js            stockage, calculs, alertes, optimisations, exports
 ├── sw.js             cache hors ligne
 ├── manifest.webmanifest
